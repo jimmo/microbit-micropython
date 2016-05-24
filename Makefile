@@ -14,9 +14,10 @@ yotta: inc/genhdr/qstrdefs.generated.h
 
 # Note: we need to protect the qstr names from the preprocessor, so we wrap
 # the lines in "" and then unwrap after the preprocessor is finished.
-inc/genhdr/qstrdefs.generated.h: $(QSTR_DEFS) tools/makeqstrdata.py inc/microbit/mpconfigport.h inc/py/mpconfig.h
+inc/genhdr/qstrdefs.generated.h: $(QSTR_DEFS) tools/makeqstrdata.py inc/microbit/mpconfigport.h inc/py/mpconfig.h yotta_modules/microbit-simulated-dal/inc/mpconfigport-simulated.h
 	$(ECHO) "Generating $@"
-	@cat $(QSTR_DEFS) | sed 's/^Q(.*)/"&"/' | $(CPP) -Iinc -Iinc/microbit - | sed 's/^"\(Q(.*)\)"/\1/' > build/qstrdefs.preprocessed.h
+	mkdir -p build
+	@cat $(QSTR_DEFS) | sed 's/^Q(.*)/"&"/' | $(CPP) -Iinc -Iinc/microbit -Iyotta_modules/microbit-simulated-dal/inc - | sed 's/^"\(Q(.*)\)"/\1/' > build/qstrdefs.preprocessed.h
 	@$(PYTHON) tools/makeqstrdata.py build/qstrdefs.preprocessed.h > $@
 
 deploy: $(HEX_FINAL)

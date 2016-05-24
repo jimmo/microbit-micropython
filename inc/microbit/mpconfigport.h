@@ -8,7 +8,7 @@
 #define MICROPY_QSTR_BYTES_IN_HASH  (1)
 #define MICROPY_EMIT_X64            (0)
 #define MICROPY_EMIT_THUMB          (0)
-#define MICROPY_EMIT_INLINE_THUMB   (1)
+#define MICROPY_EMIT_INLINE_THUMB   (0)
 #define MICROPY_EMIT_INLINE_THUMB_ARMV7M (0)
 #define MICROPY_EMIT_INLINE_THUMB_FLOAT (0)
 #define MICROPY_COMP_MODULE_CONST   (0)
@@ -62,14 +62,14 @@
 
 // type definitions for the specific machine
 
-#define BYTES_PER_WORD (4)
+#define BYTES_PER_WORD (sizeof(mp_int_t))
 
 #define MICROPY_MAKE_POINTER_CALLABLE(p) ((void*)((mp_uint_t)(p) | 1))
 
 #define UINT_FMT "%u"
 #define INT_FMT "%d"
-typedef int mp_int_t; // must be pointer size
-typedef unsigned mp_uint_t; // must be pointer size
+typedef intptr_t mp_int_t; // must be pointer size
+typedef uintptr_t mp_uint_t; // must be pointer size
 
 typedef void *machine_ptr_t; // must be of pointer size
 typedef const void *machine_const_ptr_t; // must be of pointer size
@@ -132,3 +132,4 @@ extern const struct _mp_obj_module_t os_module;
 // The ticker callback function
 extern void microbit_ticker(void);
 
+#include "mpconfigport-simulated.h"

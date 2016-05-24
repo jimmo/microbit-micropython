@@ -44,12 +44,14 @@ inline char *microbit_end_of_code() {
     return (char *)(&__etext + (&__data_end__ - &__data_start__));
 }
 
+extern char* initial_script;
+
 inline char *microbit_end_of_rom() {
-    return (char *)0x40000;
+    return initial_script;
 }
 
 inline char *microbit_mp_appended_script() {
-    return (char *)0x3e000;
+  return initial_script;
 }
 
 #endif // __MICROPY_INCLUDED_MEMORY_H__
