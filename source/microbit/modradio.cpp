@@ -33,6 +33,7 @@ extern "C" {
 #include "py/runtime.h"
 #include "microbitobj.h"
 
+/*
 #define RADIO_DEFAULT_MAX_PAYLOAD   (32)
 #define RADIO_DEFAULT_QUEUE_LEN     (3)
 #define RADIO_DEFAULT_CHANNEL       (7)
@@ -40,6 +41,7 @@ extern "C" {
 #define RADIO_DEFAULT_BASE0         (0x75626974) // "uBit"
 #define RADIO_DEFAULT_PREFIX0       (0)
 #define RADIO_DEFAULT_DATA_RATE     (RADIO_MODE_MODE_Nrf_1Mbit)
+*/
 
 typedef struct _radio_state_t {
     uint8_t max_payload;    // 1-251 inclusive
@@ -56,6 +58,7 @@ static uint8_t *buf_end = NULL;
 static uint8_t *rx_buf = NULL;
 
 void RADIO_IRQHandler(void) {
+  /*
     if (NRF_RADIO->EVENTS_READY) {
         NRF_RADIO->EVENTS_READY = 0;
         NRF_RADIO->TASKS_START = 1;
@@ -86,6 +89,7 @@ void RADIO_IRQHandler(void) {
 
         NRF_RADIO->TASKS_START = 1;
     }
+  */
 }
 
 static void ensure_enabled(void) {
@@ -95,6 +99,7 @@ static void ensure_enabled(void) {
 }
 
 static void radio_disable(void) {
+  /*
     NVIC_DisableIRQ(RADIO_IRQn);
     NRF_RADIO->EVENTS_DISABLED = 0;
     NRF_RADIO->TASKS_DISABLE = 1;
@@ -104,11 +109,12 @@ static void radio_disable(void) {
         m_del(uint8_t, MP_STATE_PORT(radio_buf), buf_end - MP_STATE_PORT(radio_buf));
         MP_STATE_PORT(radio_buf) = NULL;
     }
+  */
 }
 
 static void radio_enable(void) {
     radio_disable();
-
+    /*
     // allocate tx and rx buffers
     size_t max_payload = radio_state.max_payload + 1; // an extra byte to store the length
     size_t queue_len = radio_state.queue_len + 1; // one extra for tx buffer
@@ -171,9 +177,11 @@ static void radio_enable(void) {
 
     NRF_RADIO->EVENTS_END = 0;
     NRF_RADIO->TASKS_START = 1;
+    */
 }
 
 void radio_send(const void *buf, size_t len, const void *buf2, size_t len2) {
+  /*
     ensure_enabled();
 
     // construct the packet
@@ -232,9 +240,11 @@ void radio_send(const void *buf, size_t len, const void *buf2, size_t len2) {
 
     NVIC_ClearPendingIRQ(RADIO_IRQn);
     NVIC_EnableIRQ(RADIO_IRQn);
+  */
 }
 
 static mp_obj_t radio_receive(bool typed_packet) {
+  /*
     ensure_enabled();
 
     // disable the radio irq while we receive the packet
@@ -270,12 +280,14 @@ static mp_obj_t radio_receive(bool typed_packet) {
     NVIC_EnableIRQ(RADIO_IRQn);
 
     return ret;
+  */
 }
 
 /*****************************************************************************/
 // MicroPython bindings and module
 
 STATIC mp_obj_t mod_radio_reset(void) {
+  /*
     radio_state.max_payload = RADIO_DEFAULT_MAX_PAYLOAD;
     radio_state.queue_len = RADIO_DEFAULT_QUEUE_LEN;
     radio_state.channel = RADIO_DEFAULT_CHANNEL;
@@ -283,6 +295,7 @@ STATIC mp_obj_t mod_radio_reset(void) {
     radio_state.base0 = RADIO_DEFAULT_BASE0;
     radio_state.prefix0 = RADIO_DEFAULT_PREFIX0;
     radio_state.data_rate = RADIO_DEFAULT_DATA_RATE;
+  */
     return mp_const_none;
 }
 MP_DEFINE_CONST_FUN_OBJ_0(mod_radio_reset_obj, mod_radio_reset);
@@ -293,7 +306,7 @@ STATIC mp_obj_t mod_radio_config(size_t n_args, const mp_obj_t *pos_args, mp_map
     if (n_args != 0) {
         nlr_raise(mp_obj_new_exception_msg(&mp_type_TypeError, "arguments must be keyword arguments"));
     }
-
+    /*
     // make a copy of the radio state so we don't change anything if there are value errors
     radio_state_t new_state = radio_state;
 
@@ -402,11 +415,12 @@ STATIC mp_obj_t mod_radio_config(size_t n_args, const mp_obj_t *pos_args, mp_map
             NVIC_EnableIRQ(RADIO_IRQn);
         }
     }
-
+    */
     return mp_const_none;
-
+    /*
 value_error:
     nlr_raise(mp_obj_new_exception_msg_varg(&mp_type_ValueError, "value out of range for argument '%q'", arg_name));
+    */
 }
 MP_DEFINE_CONST_FUN_OBJ_KW(mod_radio_config_obj, 0, mod_radio_config);
 
@@ -460,10 +474,10 @@ STATIC const mp_map_elem_t radio_module_globals_table[] = {
     { MP_OBJ_NEW_QSTR(MP_QSTR_receive_bytes), (mp_obj_t)&mod_radio_receive_bytes_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_send), (mp_obj_t)&mod_radio_send_obj },
     { MP_OBJ_NEW_QSTR(MP_QSTR_receive), (mp_obj_t)&mod_radio_receive_obj },
-
+    /*
     { MP_OBJ_NEW_QSTR(MP_QSTR_RATE_250KBIT), MP_OBJ_NEW_SMALL_INT(RADIO_MODE_MODE_Nrf_250Kbit) },
     { MP_OBJ_NEW_QSTR(MP_QSTR_RATE_1MBIT), MP_OBJ_NEW_SMALL_INT(RADIO_MODE_MODE_Nrf_1Mbit) },
-    { MP_OBJ_NEW_QSTR(MP_QSTR_RATE_2MBIT), MP_OBJ_NEW_SMALL_INT(RADIO_MODE_MODE_Nrf_2Mbit) },
+    { MP_OBJ_NEW_QSTR(MP_QSTR_RATE_2MBIT), MP_OBJ_NEW_SMALL_INT(RADIO_MODE_MODE_Nrf_2Mbit) },*/
 };
 
 STATIC MP_DEFINE_CONST_DICT(radio_module_globals, radio_module_globals_table);
