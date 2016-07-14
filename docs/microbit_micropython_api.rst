@@ -2,7 +2,7 @@ micro:bit Micropython API
 *************************
 
 .. warning::
-    As we work towards a 1.0 release, this API is subject to frequent changes. This page reflects the current micro:bit API in a developer-friendly (but not necessarily kid-friendly) way.
+    As we work towards a 1.0 release, this API is subject to frequent changes. This page reflects the current micro:bit API in a developer-friendly (but not necessarily kid-friendly) way. The tutorials associated with this documentation are a good place to start for non-developers looking for information.
 
 The microbit module
 ===================
@@ -223,7 +223,7 @@ The accelerometer is accessed via the ``accelerometer`` object::
     accelerometer.get_y()
     # read the Z axis of the device. Measured in milli-g.
     accelerometer.get_z()
-    # get all three X, Y and Z readings (listed in that order).
+    # get tuple of all three X, Y and Z readings (listed in that order).
     accelerometer.get_values()
     # return the name of the current gesture.
     accelerometer.current_gesture()

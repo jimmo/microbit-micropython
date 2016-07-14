@@ -99,7 +99,7 @@ void mp_run(void) {
     mp_stack_set_limit(1800); // stack is 2k
 
     // allocate the heap statically in the bss
-    static uint32_t heap[9820 / 4];
+    static uint32_t heap[9772 / 4];
     gc_init(heap, (uint8_t*)heap + sizeof(heap));
 
     /*
@@ -118,6 +118,9 @@ void mp_run(void) {
     mp_hal_init();
     readline_init0();
     microbit_init();
+
+    // clear the radio state
+    MP_STATE_PORT(radio_buf) = NULL;
 
     // Only run initial script (or import from microbit) if we are in "friendly REPL"
     // mode.  If we are in "raw REPL" mode then this will be skipped.

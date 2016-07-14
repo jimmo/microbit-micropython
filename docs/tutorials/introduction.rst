@@ -14,7 +14,9 @@ Introduction
     movement
     gestures
     direction
+    storage
     network
+    radio
     next
 
 Python is one of the `world's most popular <http://www.tiobe.com/index.php/content/paperinfo/tpci/index.html>`_ programming languages. Every day, without
