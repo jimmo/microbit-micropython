@@ -30,6 +30,7 @@
 
 extern "C" {
 #include "py/runtime.h"
+#include "py/gc.h"
 #include "modmicrobit.h"
 #include "microbitimage.h"
 #include "microbitdisplay.h"
@@ -104,6 +105,7 @@ mp_obj_t microbit_display_show_func(mp_uint_t n_args, const mp_obj_t *pos_args, 
                 goto single_image_immediate;
             }
         }
+        image = microbit_string_facade(image);
     } else if (mp_obj_get_type(image) == &microbit_image_type) {
         if (!clear && !loop) {
             goto single_image_immediate;
@@ -130,7 +132,6 @@ static volatile bool wakeup_event = false;
 static mp_uint_t async_delay = 1000;
 static mp_uint_t async_tick = 0;
 static bool async_clear = false;
-static bool async_error = true;
 
 STATIC void async_stop(void) {
     async_iterator = NULL;
@@ -281,6 +282,30 @@ static int32_t callback(void) {
     return render_timings[brightness];
 }
 
+static void draw_object(mp_obj_t obj) {
+    microbit_display_obj_t *display = (microbit_display_obj_t*)MP_STATE_PORT(async_data)[0];
+    if (obj == MP_OBJ_STOP_ITERATION) {
+        if (async_clear) {
+            microbit_display_show(&microbit_display_obj, BLANK_IMAGE);
+            async_clear = false;
+        } else {
+            async_stop();
+        }
+    } else if (mp_obj_get_type(obj) == &microbit_image_type) {
+        microbit_display_show(display, (microbit_image_obj_t *)obj);
+    } else if (MP_OBJ_IS_STR(obj)) {
+        mp_uint_t len;
+        const char *str = mp_obj_str_get_data(obj, &len);
+        if (len == 1) {
+            microbit_display_show(display, microbit_image_for_char(str[0]));
+        } else {
+            async_stop();
+        }
+    } else {
+        MP_STATE_VM(mp_pending_exception) = mp_obj_new_exception_msg(&mp_type_TypeError, "not an image.");
+        async_stop();
+    }
+}
 
 static void microbit_display_update(void) {
     async_tick += MILLISECONDS_PER_MACRO_TICK;
@@ -295,44 +320,29 @@ static void microbit_display_update(void) {
                 async_stop();
                 break;
             }
-            microbit_display_obj_t *display = (microbit_display_obj_t*)MP_STATE_PORT(async_data)[0];
             /* WARNING: We are executing in an interrupt handler.
              * If an exception is raised here then we must hand it to the VM. */
             mp_obj_t obj;
             nlr_buf_t nlr;
+            gc_lock();
             if (nlr_push(&nlr) == 0) {
                 obj = mp_iternext_allow_raise(async_iterator);
                 nlr_pop();
+                gc_unlock();
             } else {
+                gc_unlock();
                 if (!mp_obj_is_subclass_fast(MP_OBJ_FROM_PTR(((mp_obj_base_t*)nlr.ret_val)->type),
                     MP_OBJ_FROM_PTR(&mp_type_StopIteration))) {
-                    // an exception other than StopIteration, so set it for the VM to raise later
+                    // An exception other than StopIteration, so set it for the VM to raise later
+                    // If memory error, write an appropriate message.
+                    if (mp_obj_get_type(nlr.ret_val) == &mp_type_MemoryError) {
+                        mp_printf(&mp_plat_print, "Allocation in interrupt handler");
+                    }
                     MP_STATE_VM(mp_pending_exception) = MP_OBJ_FROM_PTR(nlr.ret_val);
                 }
                 obj = MP_OBJ_STOP_ITERATION;
             }
-            if (obj == MP_OBJ_STOP_ITERATION) {
-                if (async_clear) {
-                    microbit_display_show(&microbit_display_obj, BLANK_IMAGE);
-                    async_clear = false;
-                } else {
-                    async_stop();
-                }
-            } else if (mp_obj_get_type(obj) == &microbit_image_type) {
-                microbit_display_show(display, (microbit_image_obj_t *)obj);
-            } else if (MP_OBJ_IS_STR(obj)) {
-                mp_uint_t len;
-                const char *str = mp_obj_str_get_data(obj, &len);
-                if (len == 1) {
-                    microbit_display_show(display, microbit_image_for_char(str[0]));
-                } else {
-                    async_error = true;
-                    async_stop();
-                }
-            } else {
-                async_error = true;
-                async_stop();
-            }
+            draw_object(obj);
             break;
         }
         case ASYNC_MODE_CLEAR:
@@ -367,12 +377,14 @@ void microbit_display_animate(microbit_display_obj_t *self, mp_obj_t iterable, m
     MP_STATE_PORT(async_data)[0] = NULL;
     MP_STATE_PORT(async_data)[1] = NULL;
     async_iterator = mp_getiter(iterable);
-    async_error = false;
     async_delay = delay;
     async_clear = clear;
     MP_STATE_PORT(async_data)[0] = self; // so it doesn't get GC'd
     MP_STATE_PORT(async_data)[1] = async_iterator;
     wakeup_event = false;
+    mp_obj_t obj = mp_iternext_allow_raise(async_iterator);
+    draw_object(obj);
+    async_tick = 0;
     async_mode = ASYNC_MODE_ANIMATION;
     if (wait) {
         wait_for_event();
@@ -384,7 +396,7 @@ void microbit_display_animate(microbit_display_obj_t *self, mp_obj_t iterable, m
 #define DEFAULT_SCROLL_SPEED       150
 
 void microbit_display_scroll(microbit_display_obj_t *self, const char* str) {
-    mp_obj_t iterable = scrolling_string_image_iterable(str, strlen(str), NULL, false);
+    mp_obj_t iterable = scrolling_string_image_iterable(str, strlen(str), NULL, false, false);
     microbit_display_animate(self, iterable, DEFAULT_SCROLL_SPEED, false, true);
 }
 
@@ -403,10 +415,7 @@ mp_obj_t microbit_display_scroll_func(mp_uint_t n_args, const mp_obj_t *pos_args
     mp_arg_parse_all(n_args - 1, pos_args + 1, kw_args, MP_ARRAY_SIZE(scroll_allowed_args), scroll_allowed_args, args);
     mp_uint_t len;
     const char* str = mp_obj_str_get_data(args[0].u_obj, &len);
-    mp_obj_t iterable = scrolling_string_image_iterable(str, len, args[0].u_obj, args[3].u_bool /*monospace?*/);
-    if (args[4].u_bool) { /*loop*/
-        iterable = microbit_repeat_iterator(iterable);
-    }
+    mp_obj_t iterable = scrolling_string_image_iterable(str, len, args[0].u_obj, args[3].u_bool /*monospace?*/, args[4].u_bool /*loop*/);
     microbit_display_animate(self, iterable, args[1].u_int /*delay*/, false/*clear*/, args[2].u_bool/*wait?*/);
     return mp_const_none;
 }

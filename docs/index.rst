@@ -9,12 +9,14 @@ BBC micro:bit MicroPython documentation
 Welcome!
 
 The BBC micro:bit is a small computing device for children. One of the
-languages it understands is the popular Python programming langauge. The
+languages it understands is the popular Python programming language. The
 version of Python that runs on the BBC micro:bit is called MicroPython.
 
 This documentation includes lessons for teachers
 and API documentation for developers (check out the index on the left). We hope
 you enjoy developing for the BBC micro:bit using MicroPython.
+
+If you're a new programmer, teacher or unsure where to start, begin with the tutorials.
 
 .. image:: comic.png
 
@@ -47,6 +49,7 @@ Projects related to MicroPython on the BBC micro:bit include:
     tutorials/gestures
     tutorials/direction
     tutorials/storage
+    tutorials/speech
     tutorials/network
     tutorials/radio
     tutorials/next
@@ -71,6 +74,7 @@ Projects related to MicroPython on the BBC micro:bit include:
    pin.rst
    radio.rst
    random.rst
+   speech.rst
    spi.rst
    uart.rst
 

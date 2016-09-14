@@ -142,30 +142,49 @@ greyscale_t *microbit_image_obj_t::invert() {
     return result;
 }
 
+/** Internal method, does no error checking. Result is undefined if n < 0 or n > width */
+void greyscale_t::shiftLeftInplace(mp_int_t n) {
+    mp_int_t w = this->width;
+    mp_int_t h = this->height;
+    for (mp_int_t x = n; x < w; ++x) {
+        for (mp_int_t y = 0; y < h; y++) {
+             this->setPixelValue(x-n, y, this->getPixelValue(x, y));
+        }
+    }
+    for (mp_int_t x = w-n; x < w; ++x) {
+        for (mp_int_t y = 0; y < h; y++) {
+            this->setPixelValue(x, y, 0);
+        }
+    }
+}
+
+/** Internal method, does no error checking. Result is undefined if n < 0 or n > width */
+void greyscale_t::shiftRightInplace(mp_int_t n) {
+    if (n < 0)
+        return;
+    mp_int_t w = this->width;
+    mp_int_t h = this->height;
+    for (mp_int_t x = w-1; x >= n; --x) {
+        for (mp_int_t y = 0; y < h; y++) {
+             this->setPixelValue(x, y, this->getPixelValue(x-n, y));
+        }
+    }
+    for (mp_int_t x = 0; x < n; ++x) {
+        for (mp_int_t y = 0; y < h; y++) {
+            this->setPixelValue(x, y, 0);
+        }
+    }
+}
+
 greyscale_t *microbit_image_obj_t::shiftLeft(mp_int_t n) {
     mp_int_t w = this->width();
-    mp_int_t h = this->height();
-    n = max(n, -w);
-    n = min(n, w);
-    mp_int_t src_start = max(n, 0);
-    mp_int_t src_end = min(w+n,w);
-    mp_int_t dest = max(0,-n);
-    greyscale_t *result = greyscale_new(w, h);
-    for (mp_int_t x = 0; x < dest; ++x) {
-        for (mp_int_t y = 0; y < h; y++) {
-            result->setPixelValue(x, y, 0);
-        }
-    }
-    for (mp_int_t x = src_start; x < src_end; ++x) {
-        for (mp_int_t y = 0; y < h; y++) {
-             result->setPixelValue(dest, y, this->getPixelValue(x, y));
-        }
-        ++dest;
-    }
-    for (mp_int_t x = dest; x < w; ++x) {
-        for (mp_int_t y = 0; y < h; y++) {
-            result->setPixelValue(x, y, 0);
-        }
+    if (n <= -w || n >= w)
+        return greyscale_new(w, this->height());
+    greyscale_t *result = this->copy();
+    if (n >= 0) {
+        result->shiftLeftInplace(n);
+    } else {
+        result->shiftRightInplace(-n);
     }
     return result;
 }
@@ -545,14 +564,19 @@ STATIC mp_int_t get_pixel_from_font_data(const unsigned char *data, int x, int y
     return ((data[y]>>(4-x))&1);
 }
 
-microbit_image_obj_t *microbit_image_for_char(char c) {
+void microbit_image_set_from_char(greyscale_t *img, char c) {
     const unsigned char *data = get_font_data_from_char(c);
-    greyscale_t *result = greyscale_new(5,5);
     for (int x = 0; x < 5; ++x) {
         for (int y = 0; y < 5; ++y) {
-            result->setPixelValue(x, y, get_pixel_from_font_data(data, x, y)*MAX_BRIGHTNESS);
+            img->setPixelValue(x, y, get_pixel_from_font_data(data, x, y)*MAX_BRIGHTNESS);
         }
     }
+}
+
+
+microbit_image_obj_t *microbit_image_for_char(char c) {
+    greyscale_t *result = greyscale_new(5,5);
+    microbit_image_set_from_char(result, c);
     return (microbit_image_obj_t *)result;
 }
 
@@ -638,30 +662,34 @@ typedef struct _scrolling_string_t {
     mp_uint_t len;
     mp_obj_t ref;
     bool monospace;
+    bool repeat;
 } scrolling_string_t;
 
 typedef struct _scrolling_string_iterator_t {
     mp_obj_base_t base; 
     mp_obj_t ref;
-    microbit_image_obj_t *img;
+    greyscale_t *img;
     char const *next_char;
+    char const *start;
     char const *end;
     uint8_t offset;
     uint8_t offset_limit;
     bool monospace;
+    bool repeat;
     char right;
 } scrolling_string_iterator_t;
 
 extern const mp_obj_type_t microbit_scrolling_string_type;
 extern const mp_obj_type_t microbit_scrolling_string_iterator_type;
 
-mp_obj_t scrolling_string_image_iterable(const char* str, mp_uint_t len, mp_obj_t ref, bool monospace) {
+mp_obj_t scrolling_string_image_iterable(const char* str, mp_uint_t len, mp_obj_t ref, bool monospace, bool repeat) {
     scrolling_string_t *result = m_new_obj(scrolling_string_t);
     result->base.type = &microbit_scrolling_string_type;
     result->str = str;
     result->len = len;
     result->ref = ref;
     result->monospace = monospace;
+    result->repeat = repeat;
     return result;
 }
 
@@ -685,43 +713,53 @@ STATIC unsigned int rightmost_non_blank_column(const unsigned char *font_data) {
     return 2;
 }
 
+static void restart(scrolling_string_iterator_t *iter) {
+    iter->next_char = iter->start;
+    iter->offset = 0;
+    if (iter->start < iter->end) {
+        iter->right = *iter->next_char;
+        if (iter->monospace) {
+            iter->offset_limit = 5;
+        } else {
+            iter->offset_limit = rightmost_non_blank_column(get_font_data_from_char(iter->right)) + 1;
+        }
+    } else {
+        iter->right = ' ';
+        iter->offset_limit = 5;
+    }
+}
+
 STATIC mp_obj_t get_microbit_scrolling_string_iter(mp_obj_t o_in) {
     scrolling_string_t *str = (scrolling_string_t *)o_in;
     scrolling_string_iterator_t *result = m_new_obj(scrolling_string_iterator_t);
     result->base.type = &microbit_scrolling_string_iterator_type;
-    result->img = BLANK_IMAGE;
-    result->offset = 0;
-    result->next_char = str->str;
+    result->img = greyscale_new(5,5);
+    result->start = str->str;
     result->ref = str->ref;
     result->monospace = str->monospace;
-    result->end = result->next_char + str->len;
-    if (str->len) {
-        result->right = *result->next_char;
-        if (result->monospace) {
-            result->offset_limit = 5;
-        } else {
-            result->offset_limit = rightmost_non_blank_column(get_font_data_from_char(result->right)) + 1;
-        }
-    } else {
-        result->right = ' ';
-        result->offset_limit = 5;
-    }
+    result->end = result->start + str->len;
+    result->repeat = str->repeat;
+    restart(result);
     return result;
 }
 
 STATIC mp_obj_t microbit_scrolling_string_iter_next(mp_obj_t o_in) {
     scrolling_string_iterator_t *iter = (scrolling_string_iterator_t *)o_in;
     if (iter->next_char == iter->end && iter->offset == 5) {
-        return MP_OBJ_STOP_ITERATION;
+        if (iter->repeat) {
+            restart(iter);
+            iter->img->clear();
+        } else {
+            return MP_OBJ_STOP_ITERATION;
+        }
     }
-    greyscale_t *result = iter->img->shiftLeft(1);
-    iter->img = (microbit_image_obj_t*)result;
+    iter->img->shiftLeftInplace(1);
     const unsigned char *font_data;
     if (iter->offset < iter->offset_limit) {
         font_data = get_font_data_from_char(iter->right);
         for (int y = 0; y < 5; ++y) {
             int pix = get_pixel_from_font_data(font_data, iter->offset, y)*MAX_BRIGHTNESS;
-            result->setPixelValue(4, y, pix);
+            iter->img->setPixelValue(4, y, pix);
         }
     } else if (iter->offset == iter->offset_limit) {
         ++iter->next_char;
@@ -742,7 +780,7 @@ STATIC mp_obj_t microbit_scrolling_string_iter_next(mp_obj_t o_in) {
         }
     }
     ++iter->offset;
-    return result;
+    return iter->img;
 }
 
 const mp_obj_type_t microbit_scrolling_string_type = {
@@ -780,5 +818,115 @@ const mp_obj_type_t microbit_scrolling_string_iterator_type = {
     .bases_tuple = NULL,
     .locals_dict = NULL,
 };
+
+/** Facade types to present a string as a sequence of images.
+ * These are necessary to avoid allocation during iteration,
+ * which may happen in interrupt handlers.
+ */
+
+typedef struct _string_image_facade_t {
+    mp_obj_base_t base;
+    mp_obj_t string;
+    greyscale_t *image;
+} string_image_facade_t;
+
+static mp_obj_t string_image_facade_subscr(mp_obj_t self_in, mp_obj_t index_in, mp_obj_t value) {
+    if (value == MP_OBJ_SENTINEL) {
+        // Fill in image
+        string_image_facade_t *self = (string_image_facade_t *)self_in;
+        mp_uint_t len;
+        const char *text = mp_obj_str_get_data(self->string, &len);
+        mp_uint_t index = mp_get_index(self->base.type, len, index_in, false);
+        microbit_image_set_from_char(self->image, text[index]);
+        return self->image;
+    } else {
+        return MP_OBJ_NULL; // op not supported
+    }
+}
+
+static mp_obj_t facade_unary_op(mp_uint_t op, mp_obj_t self_in) {
+    string_image_facade_t *self = (string_image_facade_t *)self_in;
+    switch (op) {
+        case MP_UNARY_OP_LEN:
+            return mp_obj_len(self->string);
+        default: return MP_OBJ_NULL; // op not supported
+    }
+}
+
+static mp_obj_t microbit_facade_iterator(mp_obj_t iterable);
+
+const mp_obj_type_t string_image_facade_type = {
+    { &mp_type_type },
+    .name = MP_QSTR_Facade,
+    .print = NULL,
+    .make_new = NULL,
+    .call = NULL,
+    .unary_op = facade_unary_op,
+    .binary_op = NULL,
+    .attr = NULL,
+    .subscr = string_image_facade_subscr,
+    .getiter = microbit_facade_iterator,
+    .iternext = NULL,
+    .buffer_p = {NULL},
+    .stream_p = NULL,
+    .bases_tuple = NULL,
+    NULL
+};
+
+
+typedef struct _facade_iterator_t {
+    mp_obj_base_t base;
+    mp_obj_t string;
+    mp_uint_t index;
+    greyscale_t *image;
+} facade_iterator_t;
+
+mp_obj_t microbit_string_facade(mp_obj_t string) {
+    string_image_facade_t *result = m_new_obj(string_image_facade_t);
+    result->base.type = &string_image_facade_type;
+    result->string = string;
+    result->image = greyscale_new(5,5);
+    return result;
+}
+
+static mp_obj_t microbit_facade_iter_next(mp_obj_t iter_in) {
+    facade_iterator_t *iter = (facade_iterator_t *)iter_in;
+    mp_uint_t len;
+    const char *text = mp_obj_str_get_data(iter->string, &len);
+    if (iter->index >= len) {
+        return MP_OBJ_STOP_ITERATION;
+    }
+    microbit_image_set_from_char(iter->image, text[iter->index]);
+    iter->index++;
+    return iter->image;
+}
+
+const mp_obj_type_t microbit_facade_iterator_type = {
+    { &mp_type_type },
+    .name = MP_QSTR_iterator,
+    .print = NULL,
+    .make_new = NULL,
+    .call = NULL,
+    .unary_op = NULL,
+    .binary_op = NULL,
+    .attr = NULL,
+    .subscr = NULL,
+    .getiter = mp_identity,
+    .iternext = microbit_facade_iter_next,
+    .buffer_p = {NULL},
+    .stream_p = NULL,
+    .bases_tuple = NULL,
+    NULL
+};
+
+mp_obj_t microbit_facade_iterator(mp_obj_t iterable_in) {
+    facade_iterator_t *result = m_new_obj(facade_iterator_t);
+    string_image_facade_t *iterable = (string_image_facade_t *)iterable_in;
+    result->base.type = &microbit_facade_iterator_type;
+    result->string = iterable->string;
+    result->image = iterable->image;
+    result->index = 0;
+    return result;
+}
 
 }

@@ -37,6 +37,8 @@ typedef struct _greyscale_t {
     uint8_t width;
     uint8_t byte_data[]; /* Static initializer for this will have to be C, not C++ */
     void clear();
+    void shiftLeftInplace(mp_int_t n);
+    void shiftRightInplace(mp_int_t n);
     
     /* Thiese are internal methods and it is up to the caller to validate the inputs */
     uint8_t getPixelValue(mp_int_t x, mp_int_t y);
@@ -60,10 +62,14 @@ typedef union _microbit_image_obj_t {
     
 } microbit_image_obj_t;
 
+/** Return a facade object that presents the string as a sequence of images */
+mp_obj_t microbit_string_facade(mp_obj_t string);
+
+void microbit_image_set_from_char(greyscale_t *img, char c);
 microbit_image_obj_t *microbit_image_for_char(char c);
 mp_obj_t microbit_image_slice(microbit_image_obj_t *img, mp_int_t start, mp_int_t width, mp_int_t stride);
 /* ref exists so that we can pull a string out of an object and not have it GC'ed while oterating over it */
-mp_obj_t scrolling_string_image_iterable(const char* str, mp_uint_t len, mp_obj_t ref, bool monospace);
+mp_obj_t scrolling_string_image_iterable(const char* str, mp_uint_t len, mp_obj_t ref, bool monospace, bool repeat);
 
 #define SMALL_IMAGE(p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, p10, p11, p12, p13, p14, p15, p16, p17, p18, p19, p20, p21, p22, p23, p44) \
 { \
@@ -82,7 +88,6 @@ extern const monochrome_5by5_t microbit_const_image_heart_obj;
 #define BLANK_IMAGE (microbit_image_obj_t *)(&microbit_blank_image)
 #define HEART_IMAGE (microbit_image_obj_t *)(&microbit_const_image_heart_obj)
 
-microbit_image_obj_t *microbit_image_for_char(char c);
 microbit_image_obj_t *microbit_image_dim(microbit_image_obj_t *lhs, mp_float_t fval);
 microbit_image_obj_t *microbit_image_sum(microbit_image_obj_t *lhs, microbit_image_obj_t *rhs, bool add);
 
