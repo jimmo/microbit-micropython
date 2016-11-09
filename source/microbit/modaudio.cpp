@@ -59,7 +59,7 @@ extern "C" {
 
 static bool running = false;
 
-static void audio_stop(void) {
+void audio_stop(void) {
 }
 
 void audio_play_source(mp_obj_t src, mp_obj_t pin1, mp_obj_t pin2, bool wait) {
