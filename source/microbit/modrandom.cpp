@@ -113,10 +113,21 @@ STATIC MP_DEFINE_CONST_FUN_OBJ_2(mod_random_randint_obj, mod_random_randint);
 
 STATIC mp_obj_t mod_random_choice(mp_obj_t seq) {
     mp_int_t len = mp_obj_get_int(mp_obj_len(seq));
-    if (len > 0) {
-        return mp_obj_subscr(seq, mp_obj_new_int(randbelow(len)), MP_OBJ_SENTINEL);
-    } else {
+    if (len <= 0) {
         nlr_raise(mp_obj_new_exception(&mp_type_IndexError));
+    } else {
+        int32_t marker_len = 0;
+        const char* marker_result = NULL;
+        if (get_random_choice(&marker_len, &marker_result)) {
+	    if (len != marker_len) {
+	        set_marker_failure_event("Incorrect number of items passed to random.choice.");
+	    } else {
+	        if (marker_result) {
+		     return mp_obj_subscr(seq, mp_obj_new_int(0), MP_OBJ_SENTINEL);
+	        }
+	    }
+        }
+	return mp_obj_subscr(seq, mp_obj_new_int(randbelow(len)), MP_OBJ_SENTINEL);
     }
 }
 STATIC MP_DEFINE_CONST_FUN_OBJ_1(mod_random_choice_obj, mod_random_choice);
