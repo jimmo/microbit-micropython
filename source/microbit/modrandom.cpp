@@ -122,7 +122,7 @@ STATIC mp_obj_t mod_random_choice(mp_obj_t seq) {
         if (get_random_choice(&marker_len, &marker_result)) {
             if (len != marker_len) {
                 // Report failure, but continue to use random anyway.
-                set_marker_failure_event("Incorrect number of items passed to random.choice.");
+                set_marker_failure_event("random", "Incorrect number of items passed to random.choice.");
             } else {
                 // The marker can also optionally set a forced result
                 // which is the repr() of the expected item.
@@ -143,7 +143,7 @@ STATIC mp_obj_t mod_random_choice(mp_obj_t seq) {
                         ++i;
                     }
                     if (index < 0) {
-                        set_marker_failure_event("Item missing from random.choice.");
+                        set_marker_failure_event("random", "Item missing from random.choice.");
                         index = randbelow(len);
                     }
                     return mp_obj_subscr(seq, mp_obj_new_int(index), MP_OBJ_SENTINEL);
