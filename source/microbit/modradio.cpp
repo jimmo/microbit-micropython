@@ -108,6 +108,8 @@ static void radio_disable(void) {
         m_del(uint8_t, MP_STATE_PORT(radio_buf), buf_end - MP_STATE_PORT(radio_buf));
         MP_STATE_PORT(radio_buf) = NULL;
     }
+
+    simulator_radio_config(false, radio_state.channel, radio_state.base0, radio_state.prefix0, radio_state.data_rate);
 }
 
 static void radio_enable(void) {
@@ -120,7 +122,7 @@ static void radio_enable(void) {
     buf_end = MP_STATE_PORT(radio_buf) + max_payload * queue_len;
     rx_buf = MP_STATE_PORT(radio_buf) + max_payload; // start is tx buffer
 
-    simulator_radio_config(radio_state.channel, radio_state.base0, radio_state.prefix0, radio_state.data_rate);
+    simulator_radio_config(true, radio_state.channel, radio_state.base0, radio_state.prefix0, radio_state.data_rate);
 
     // Enable the High Frequency clock on the processor. This is a pre-requisite for
     // the RADIO module. Without this clock, no communication is possible.
@@ -413,7 +415,7 @@ STATIC mp_obj_t mod_radio_config(size_t n_args, const mp_obj_t *pos_args, mp_map
 
             // change state
             radio_state = new_state;
-	    simulator_radio_config(radio_state.channel, radio_state.base0, radio_state.prefix0, radio_state.data_rate);
+	    simulator_radio_config(true, radio_state.channel, radio_state.base0, radio_state.prefix0, radio_state.data_rate);
             // NRF_RADIO->TXPOWER = radio_state.power_dbm;
             // NRF_RADIO->FREQUENCY = radio_state.channel;
             // NRF_RADIO->MODE = radio_state.data_rate;
