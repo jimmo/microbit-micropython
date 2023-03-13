@@ -7,6 +7,10 @@
 
 #include "nrf.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef void (*callback_ptr)(void);
 typedef int32_t (*ticker_callback_ptr)(void);
 
@@ -18,6 +22,9 @@ int clear_ticker_callback(uint32_t index);
 int set_ticker_callback(uint32_t index, ticker_callback_ptr func, int32_t initial_delay_us);
 
 int set_low_priority_callback(callback_ptr callback, int id);
+#ifdef __cplusplus
+}
+#endif
 
 #define CYCLES_PER_MICROSECONDS 16
 
